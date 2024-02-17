@@ -4,7 +4,7 @@ import urlMetadata from 'url-metadata';
 import path from 'path';
 import os from 'os';
 
-import cacheService from './CacheService';
+import cacheService from './CacheService.js';
 
 class BrowserService {
   maxPageCount = 20;

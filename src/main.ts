@@ -1,24 +1,16 @@
 import express, { Express, Request, Response, NextFunction } from 'express';
-import path from 'path';
-import os from 'os';
 
 import appinfo from './appinfo.json';
-import CacheService from './CacheService';
-import BrowserService from './BrowserService';
-import InvalidValueError from './errors/InvalidValueError';
-import NotFoundError from './errors/NotFoundError';
-import UnauthorizedError from './errors/UnauthorizedError';
+import CacheService from './CacheService.js';
+import BrowserService from './BrowserService.js';
+import InvalidValueError from './errors/InvalidValueError.js';
+import NotFoundError from './errors/NotFoundError.js';
+import UnauthorizedError from './errors/UnauthorizedError.js';
 
 const defaultLocale = 'en';
 const port = 7331;
 const apiKey = '12345';
 
-function createTempFile (suffix: string = '.dat'): string {
-  return path.join(
-    os.tmpdir(),
-    `${Date.now()}-${Math.floor(Math.random() * 10000000)}-${suffix}`
-  );
-}
 
 function checkAccess (req: Request, res: Response, next: NextFunction) {
   if (req.query.apikey !== apiKey) {
