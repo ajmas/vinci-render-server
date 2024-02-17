@@ -1,4 +1,4 @@
-# Vici Render Server
+# Vinci Render Server
 
 The project simply wraps a headless Chrome browser (provided by puppeteer)
 with a REST API, so that it can be run separate to other services.
