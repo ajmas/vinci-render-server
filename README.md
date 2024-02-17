@@ -13,14 +13,18 @@ Author: Andre-John Mas
 - `/api/` -- server build information
 - `/api/browser/screenshot` -- creates a screenshot of the page
   - **url**: the URL of the page
+  - **lang**: the page language (default: en)
   - **w**: width of the page in pixels (default: 1920)
   - **h**: height of the page in pixels (default: 1080)
 - `/api/browser/pdf` -- creates a pdf of the page
   - **url**: the URL of the page
+  - **lang**: the page language (default: en)
 - `/api/browser/html` -- returns the HTML of the page
   - **url**: the URL of the page
+  - **lang**: the page language (default: en)
 - `/api/browser/metadata` -- returns the page metadata
   - **url**: the URL of the page
+  - **lang**: the page language (default: en)
 
 ## Building & Running
 

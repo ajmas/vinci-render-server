@@ -1,4 +1,4 @@
-import { setTimeout } from 'timers/promises';
+import { setTimeout as awaitTimeout } from 'timers/promises';
 import puppeteer, { Browser, PDFOptions, Page, PuppeteerLaunchOptions } from 'puppeteer';
 import urlMetadata from 'url-metadata';
 import path from 'path';
@@ -21,6 +21,7 @@ class BrowserService {
       '--disable-features=site-per-process',
       '--window-size=1920,1080',
       '--incognito'
+      // '--lang=fr-FR,fr'
     ]
   };
 
@@ -61,27 +62,43 @@ class BrowserService {
   }
 
   private startIdleTimer () {
+    // stop the browser if it hasn't been used in a whilt
     setInterval(() => {
       if (this.browser && (Date.now() - this.lastAccessTime) > this.idlePeriod) {
         this.closeBrowser();
       }
-    });
+    }, 30000);
   }
 
-  private async createPage (pageUrl: string, locale: string, waitDuration?: number): Promise<Page> {
+  private async createPage (pageUrl: string, locale: string, options: Record<string, any> = {}): Promise<Page> {
       const browser = await this.getBrowser();
 
       // TODO deal with max tries
       while (this.pageCount >= this.maxPageCount) {
-        await setTimeout(500);
+        await awaitTimeout(500);
       }
       this.pageCount++;
 
       const page = await browser.newPage();
+      const headers: Record<string, string> = {
+        'Accept-Language': `${locale},en;q=0.9,en;q=0.8`
+      };
+      page.setRequestInterception(true);
+
+      page.on('request', request => {
+        // Override headers
+        const headers = Object.assign({}, request.headers(), {
+          'Accept-Language': `${locale};q=0.7`
+        });
+        request.continue({ headers });
+      });
+
       page.goto(pageUrl);
 
+      const waitDuration = options?.waitDuration || 2000;
+
       if (waitDuration) {
-        await setTimeout(waitDuration);
+        await awaitTimeout(waitDuration);
       }
 
       return page;
@@ -89,8 +106,12 @@ class BrowserService {
 
   private closePage (page: Page) {
     if (page) {
-      this.pageCount--;
-      page.close();
+      // delaying the closing since we seem to be running into some issues
+      // if we close it too soon
+      setTimeout(() => {
+        this.pageCount--;
+        page.close();
+      }, 2000);
     }
   }
 
@@ -102,7 +123,12 @@ class BrowserService {
         tmpFilePath = options.path;
       }
 
-      page = await this.createPage(pageUrl, locale, 2000);
+      let waitDuration = 2000;
+      if (options.wait) {
+        waitDuration = options.wait;
+      }
+
+      page = await this.createPage(pageUrl, locale, { waitDuration });
       const data = await page.pdf({
         path: tmpFilePath,
         ...this.pdfOptions,
@@ -139,7 +165,7 @@ class BrowserService {
         waitDuration = options.wait;
       }
 
-      page = await this.createPage(pageUrl, locale, waitDuration);
+      page = await this.createPage(pageUrl, locale, { waitDuration });
 
       page.setViewport({
         width: options?.viewport.width || 1920,
@@ -161,14 +187,20 @@ class BrowserService {
     return tmpFilePath;
   }
 
-  async getPageAsHtml (pageUrl: string, locale: string): Promise<string | undefined> {
+  async getPageAsHtml (pageUrl: string, locale: string, options: Record<string, unknown> = {}): Promise<string | undefined> {
     const key = `html-${pageUrl}-${locale}`;
 
     let html = cacheService.getFromCache<string>(undefined, key);
     if (!html) {
       let page;
       try {
-        page = await this.createPage(pageUrl, locale, 2000);
+
+        let waitDuration = 2000;
+        if (options.wait) {
+          waitDuration = options.wait as number;
+        }
+
+        page = await this.createPage(pageUrl, locale, { waitDuration });
         if (page) {
           html = await page.content();
           cacheService.addToCache(undefined, key, html);
@@ -181,8 +213,8 @@ class BrowserService {
     return html;
   }
 
-  async getPageMetadata (pageUrl: string, locale: string) {
-    const html = await this.getPageAsHtml(pageUrl, locale);
+  async getPageMetadata (pageUrl: string, locale: string, options: Record<string, unknown> = {}) {
+    const html = await this.getPageAsHtml(pageUrl, locale, options);
     let metadata;
 
     if (html) {
