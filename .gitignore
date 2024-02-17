@@ -1,0 +1,12 @@
+node_modules
+.DS_Store
+logs/
+*.env
+tmp
+
+# Devenv
+.direnv
+.devenv*
+devenv.local.nix
+
+.devenv
