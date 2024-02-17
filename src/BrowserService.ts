@@ -19,7 +19,8 @@ class BrowserService {
     headless: true,
     args: [
       '--disable-features=site-per-process',
-      '--window-size=1920,1080'
+      '--window-size=1920,1080',
+      '--incognito'
     ]
   };
 

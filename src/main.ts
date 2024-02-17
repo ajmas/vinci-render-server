@@ -126,11 +126,19 @@ function initRoutes () {
     try {
       const url = req.query.url;
       const locale = req.query.lang || defaultLocale;
+
+      if (!url || typeof url !== 'string') {
+        throw new InvalidValueError('url: required;one-occurrence', 'url');
+      } else if (url.trim().length === 0) {
+        throw new InvalidValueError('url: required', 'url');
+      }
+
       const metadata = await BrowserService.getPageMetadata(url as string, locale as string);
       if (metadata) {
         res.json(metadata);
+      } else {
+        throw new Error('Unable to process');
       }
-      throw new Error('Unable to process');
     } catch (error) {
       next(error);
     }
