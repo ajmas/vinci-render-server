@@ -15,6 +15,7 @@ RUN apk add --no-cache \
       ttf-freefont \
       nodejs \
       yarn
+
 # Tell Puppeteer to skip installing Chrome. We'll be using the installed package.
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
@@ -27,15 +28,14 @@ RUN addgroup -S pptruser && adduser -S -G pptruser pptruser \
     && chown -R pptruser:pptruser /home/pptruser \
     && chown -R pptruser:pptruser /app
 
-# Run everything after as non-privileged user.
-USER pptruser
-
 WORKDIR /usr/src/app
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm install --no-save
 ADD . /usr/src/app
 RUN npm run build
 
 RUN cp src/appinfo.json dist/appinfo.json
+# Run everything after as non-privileged user.
+USER pptruser
 CMD [ "node", "./dist/main.js" ]
 EXPOSE 7331

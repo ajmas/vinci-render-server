@@ -5,10 +5,15 @@ import path from 'path';
 import os from 'os';
 
 import cacheService from './CacheService.js';
+import { createLogger } from '../utils/Logger.js';
+
+const logger = createLogger('browser-service');
 
 class BrowserService {
   maxPageCount = 20;
   idlePeriod = 60000;
+  waitDuration = 500;
+  idleTime: 15000;
 
   browser: Browser | undefined;
   requestHeaders: Record<string, string> = {};
@@ -20,8 +25,8 @@ class BrowserService {
     args: [
       '--disable-features=site-per-process',
       '--window-size=1920,1080',
-      '--incognito'
-      // '--lang=fr-FR,fr'
+      '--incognito',
+      '--no-sandbox'
     ]
   };
 
@@ -43,6 +48,12 @@ class BrowserService {
     );
   }
 
+  private getSignificantValue (text: string): string | undefined {
+    if (text && text.trim().length > 0) {
+      return text;
+    }
+    return undefined;
+  }
 
   private async getBrowser (): Promise<Browser> {
     this.lastAccessTime = Date.now();
@@ -71,37 +82,44 @@ class BrowserService {
   }
 
   private async createPage (pageUrl: string, locale: string, options: Record<string, any> = {}): Promise<Page> {
-      const browser = await this.getBrowser();
+    logger.debug(`createPage - ${pageUrl} ${JSON.stringify(options)}`);
 
-      // TODO deal with max tries
-      while (this.pageCount >= this.maxPageCount) {
-        await awaitTimeout(500);
-      }
-      this.pageCount++;
+    const browser = await this.getBrowser();
 
-      const page = await browser.newPage();
-      const headers: Record<string, string> = {
-        'Accept-Language': `${locale},en;q=0.9,en;q=0.8`
-      };
-      page.setRequestInterception(true);
+    // TODO deal with max tries
+    while (this.pageCount >= this.maxPageCount) {
+      await awaitTimeout(500);
+    }
+    this.pageCount++;
 
-      page.on('request', request => {
-        // Override headers
-        const headers = Object.assign({}, request.headers(), {
-          'Accept-Language': `${locale};q=0.7`
-        });
-        request.continue({ headers });
+    const page = await browser.newPage();
+    const headers: Record<string, string> = {
+      'Accept-Language': `${locale},en;q=0.9,en;q=0.8`
+    };
+    page.setRequestInterception(true);
+
+    page.on('request', request => {
+      // Override headers
+      const headers = Object.assign({}, request.headers(), {
+        'Accept-Language': `${locale};q=0.7`
       });
+      request.continue({ headers });
+    });
 
-      page.goto(pageUrl);
+    page.goto(pageUrl);
 
-      const waitDuration = options?.waitDuration || 2000;
+    const waitDuration = options?.waitDuration || this.waitDuration;
 
-      if (waitDuration) {
-        await awaitTimeout(waitDuration);
-      }
+    if (waitDuration) {
+      await awaitTimeout(waitDuration);
+    }
 
-      return page;
+    await page.waitForNetworkIdle({
+      concurrency: 5,
+      idleTime: this.idleTime
+    });
+
+    return page;
   }
 
   private closePage (page: Page) {
@@ -111,7 +129,7 @@ class BrowserService {
       setTimeout(() => {
         this.pageCount--;
         page.close();
-      }, 2000);
+      }, 5000);
     }
   }
 
@@ -123,7 +141,7 @@ class BrowserService {
         tmpFilePath = options.path;
       }
 
-      let waitDuration = 2000;
+      let waitDuration;
       if (options.wait) {
         waitDuration = options.wait;
       }
@@ -145,7 +163,6 @@ class BrowserService {
     return tmpFilePath;
   }
 
-
   async getPageScreenshot (pageUrl: string, locale: string, options: Record<string, any> = {}) {
     let page;
     let tmpFilePath;
@@ -160,7 +177,7 @@ class BrowserService {
         fileType = options.type;
       }
 
-      let waitDuration = 2000;
+      let waitDuration;
       if (options.wait) {
         waitDuration = options.wait;
       }
@@ -195,7 +212,7 @@ class BrowserService {
       let page;
       try {
 
-        let waitDuration = 2000;
+        let waitDuration;
         if (options.wait) {
           waitDuration = options.wait as number;
         }
@@ -213,7 +230,7 @@ class BrowserService {
     return html;
   }
 
-  async getPageMetadata (pageUrl: string, locale: string, options: Record<string, unknown> = {}) {
+  async getPageMetadata (pageUrl: string, locale: string, options: urlMetadata.Result = {}) {
     const html = await this.getPageAsHtml(pageUrl, locale, options);
     let metadata;
 
@@ -234,6 +251,35 @@ class BrowserService {
     }
 
     return metadata;
+  }
+
+  async getPagePreviewMetadata (pageUrl: string, locale: string, options: Record<string, unknown> = {}) {
+    const metadata = await this.getPageMetadata(pageUrl, locale, options);
+
+    let url = metadata.canonical || metadata['og:url'] || pageUrl;
+    const favicons = (metadata.favicons || []).map(favicon => {
+      if (favicon?.href.startsWith('/')) {
+        const canonicalUrl = new URL(url);
+        if (url.endsWith('/')) {
+          url = url.substring(0, url.length - 1);
+        }
+        favicon.href = `${canonicalUrl.protocol}//${canonicalUrl.host}${favicon.href}`;
+      }
+      return favicon;
+    });
+
+    const prevewMetadata = {
+      title: metadata.title || metadata['og:title'],
+      description: metadata.description || metadata['og:description'],
+      siteName: metadata['og:siteName'],
+      type: this.getSignificantValue(metadata['og:type']),
+      previewImage: this.getSignificantValue(metadata['og:image']),
+      url: metadata.canonical || metadata['og:url'] || pageUrl,
+      favicons,
+      locale: this.getSignificantValue(metadata['og:locale'])
+    };
+
+    return prevewMetadata;
   }
 }
 
