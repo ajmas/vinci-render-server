@@ -25,6 +25,12 @@ Author: Andre-John Mas
 - `/api/browser/metadata` -- returns the page metadata
   - **url**: the URL of the page
   - **lang**: the page language (default: en)
+- `/api/browser/preview` -- returns the page metadata suitable for a link preview
+  - **url**: the URL of the page
+  - **lang**: the page language (default: en)
+
+Note: all endpoints, except `/api` need an `apikey` parameter. The accepted 
+values can be configured in the `config/default.json` file.
 
 ## Building & Running
 
